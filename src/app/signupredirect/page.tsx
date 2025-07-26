@@ -24,13 +24,14 @@ export default function SignupRedirect() {
               name: user.fullName,
               email: user.primaryEmailAddress?.emailAddress,
               role: "Volunteer",
+              phoneNumber: user.phoneNumbers[0].phoneNumber,
               active: true,
             }),
           });
 
           if (!response.ok) throw new Error("Failed to add user");
 
-          router.push("/editUserProfile");
+          router.push("/");
         } catch (err: any) {
           setError(err.message);
         }
