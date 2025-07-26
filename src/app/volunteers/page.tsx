@@ -57,6 +57,24 @@ function Volunteers() {
     router.push("/volunteerDashboard");
   }
 
+  function formatPhoneNumber(phoneNumber: string): string {
+  // Remove all non-digit characters
+  const digits = phoneNumber.replace(/\D/g, '');
+  
+  // Check if it's a US number (10 or 11 digits)
+  if (digits.length === 10) {
+    // Format as +1 (XXX) XXX-XXXX
+    return `+1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  } else if (digits.length === 11 && digits[0] === '1') {
+    // Remove leading 1 and format
+    const withoutCountryCode = digits.slice(1);
+    return `+1 (${withoutCountryCode.slice(0, 3)}) ${withoutCountryCode.slice(3, 6)}-${withoutCountryCode.slice(6)}`;
+  } else {
+    // Return original if not a valid US number format
+    return phoneNumber;
+  }
+}
+
   //fetch users
   useEffect(() => {
     const fetchUsers = async () => {
@@ -269,8 +287,7 @@ function Volunteers() {
                                 <Td>{user.email}</Td>
 
                                 <Td>
-                                  {user.phoneNumber?.replace(/\D/g, "").replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3") ||
-                                    "N/A"}
+                                  {user.phoneNumber ? formatPhoneNumber(user.phoneNumber) : "N/A"}
                                 </Td>
                                 <Td>
                                   <Box {...CenterStyle} height="100%">
