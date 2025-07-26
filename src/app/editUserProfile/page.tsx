@@ -41,8 +41,9 @@ export default function EditUserProfile() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [existingEmailId, setExistingEmailId] = useState<string | null>(null);
-  const [mongoUserId, setMongoUserId] = useState<object | null>(null);
+  const [mongoUserId, setMongoUserId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // create file input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -60,6 +61,7 @@ export default function EditUserProfile() {
       setToastStatus(null);
     }, 3000);
   };
+
   const [isClient, setIsClient] = useState(false);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
 
@@ -67,8 +69,6 @@ export default function EditUserProfile() {
     setIsClient(true);
     setIsMobileDevice(isMobile);
   }, []);
-
-  /* This is put in for testing only, please delete this code  */
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -82,18 +82,21 @@ export default function EditUserProfile() {
         const data = await res.json();
         setMongoUserId(data._id);
 
-        setName(data.name || "");
-        setEmail(data.email || "");
-        setPhoneNumber(data.phoneNumber || "");
-        setProfileURL(data.profileURL || "/pfp.png");
-        setOriginalUserData({
+        const userData = {
           name: data.name || "",
           email: data.email || "",
           phoneNumber: data.phoneNumber || "",
           profileURL: data.profileURL || "/pfp.png",
-        });
+        };
+
+        setName(userData.name);
+        setEmail(userData.email);
+        setPhoneNumber(userData.phoneNumber);
+        setProfileURL(userData.profileURL);
+        setOriginalUserData(userData);
       } catch (error) {
         console.error("Failed to fetch user data:", error);
+        showToast("Failed to load user data", "error");
       } finally {
         setLoading(false);
       }
@@ -118,84 +121,171 @@ export default function EditUserProfile() {
       });
 
       if (response.ok) {
-        alert("Upload successful!");
-
         // update profileURL
         const data = await response.json();
         setProfileURL(data.url);
+        showToast("Profile picture uploaded successfully!", "success");
       } else {
-        alert("Upload failed!");
+        showToast("Upload failed!", "error");
       }
+    } catch (error) {
+      console.error("Upload error:", error);
+      showToast("Upload failed!", "error");
     } finally {
       setUploading(false);
     }
   };
 
   const saveUserInfo = async () => {
+    if (saving) return; // Prevent double submission
+
+    setSaving(true);
+
     try {
-      let clerkUpdated = false;
-      let mongoUpdated = false;
-
+      // Check what fields have changed
       const updatedFields: any = {};
+      let hasChanges = false;
 
-      if (name !== originalUserData.name) updatedFields.name = name;
-      if (email !== originalUserData.email) updatedFields.email = email;
-      if (phoneNumber !== originalUserData.phoneNumber) updatedFields.phoneNumber = phoneNumber;
-      if (profileURL !== originalUserData.profileURL) updatedFields.profileURL = profileURL;
-
-      // === Clerk update (only if email changed) ===
-      if (updatedFields.email) {
-        const response = await fetch("/api/clerk", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId,
-            newEmail: updatedFields.email.toLowerCase(),
-            existingEmailId,
-          }),
-        });
-
-        const clerk_data = await response.json();
-        if (!response.ok) throw new Error(clerk_data.error || "Failed to update Clerk.");
-        console.log("User updated on Clerk:", clerk_data.user);
-        clerkUpdated = true;
+      if (name.trim() !== originalUserData.name) {
+        updatedFields.name = name.trim();
+        hasChanges = true;
+      }
+      if (email.toLowerCase() !== originalUserData.email.toLowerCase()) {
+        updatedFields.email = email.toLowerCase();
+        hasChanges = true;
+      }
+      if (phoneNumber.trim() !== originalUserData.phoneNumber) {
+        updatedFields.phoneNumber = phoneNumber.trim();
+        hasChanges = true;
+      }
+      if (profileURL !== originalUserData.profileURL) {
+        updatedFields.profileURL = profileURL;
+        hasChanges = true;
       }
 
-      // === MongoDB update ===
-      if (Object.keys(updatedFields).length > 0) {
-        const res = await fetch(`/api/user/${mongoUserId}`, {
+      if (!hasChanges) {
+        showToast("No changes made.", "error");
+        return;
+      }
+
+      let clerkUpdateSuccess = true;
+      let mongoUpdateSuccess = true;
+
+      // === Update Clerk (for ALL fields if there are any changes) ===
+      try {
+        const clerkPayload: any = {
+          userId,
+          combinedUpdate: true,
+        };
+
+        // Add email fields if email changed
+        if (updatedFields.email !== undefined) {
+          clerkPayload.newEmail = updatedFields.email;
+          clerkPayload.existingEmailId = existingEmailId;
+        }
+
+        // Add profile fields if they changed
+        if (updatedFields.name !== undefined) {
+          const nameParts = updatedFields.name.trim().split(" ");
+          clerkPayload.firstName = nameParts[0] || "";
+          clerkPayload.lastName = nameParts.slice(1).join(" ") || "";
+        }
+
+        if (updatedFields.phoneNumber !== undefined) {
+          clerkPayload.phoneNumber = updatedFields.phoneNumber;
+        }
+
+        if (updatedFields.profileURL !== undefined) {
+          clerkPayload.profileImageUrl = updatedFields.profileURL;
+        }
+
+        const clerkResponse = await fetch("/api/clerk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(clerkPayload),
+        });
+
+        const clerkData = await clerkResponse.json();
+
+        if (!clerkResponse.ok) {
+          console.error("Clerk update failed:", clerkData);
+          clerkUpdateSuccess = false;
+          throw new Error(clerkData.error || "Failed to update user in Clerk.");
+        }
+
+        console.log("User updated on Clerk:", clerkData);
+      } catch (error) {
+        console.error("Clerk update error:", error);
+        clerkUpdateSuccess = false;
+        throw error;
+      }
+
+      // === Update MongoDB (for ALL fields if there are any changes) ===
+      try {
+        const mongoResponse = await fetch(`/api/user/${mongoUserId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updatedFields),
         });
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to update MongoDB.");
-        console.log("User updated on MongoDB:", data.user);
-        mongoUpdated = true;
+        const mongoData = await mongoResponse.json();
+
+        if (!mongoResponse.ok) {
+          console.error("MongoDB update failed:", mongoData);
+          mongoUpdateSuccess = false;
+          throw new Error(mongoData.error || "Failed to update user data in database.");
+        }
+
+        console.log("User updated on MongoDB:", mongoData.user);
+      } catch (error) {
+        console.error("MongoDB update error:", error);
+        mongoUpdateSuccess = false;
+        throw error;
       }
 
-      if (!clerkUpdated && !mongoUpdated) {
-        showToast("No changes made.", "error");
-        return;
-      }
+      // If we get here, both updates succeeded
+      showToast("Profile updated successfully in both systems!", "success");
 
-      showToast("You have successfully made changes.", "success");
+      // Update the original data to reflect the changes
+      const newOriginalData = {
+        name: updatedFields.name !== undefined ? updatedFields.name : originalUserData.name,
+        email: updatedFields.email !== undefined ? updatedFields.email : originalUserData.email,
+        phoneNumber: updatedFields.phoneNumber !== undefined ? updatedFields.phoneNumber : originalUserData.phoneNumber,
+        profileURL: updatedFields.profileURL !== undefined ? updatedFields.profileURL : originalUserData.profileURL,
+      };
 
-      // update local original state
-      setOriginalUserData({ name, email, phoneNumber, profileURL: profileURL });
+      setOriginalUserData(newOriginalData);
 
-      router.push("/userProfile");
+      // Navigate back to profile page after a short delay
+      setTimeout(() => {
+        router.push("/userProfile");
+      }, 1500);
     } catch (error) {
       console.error("Error updating information:", error);
-      showToast("Unable to make changes. Email potentially already in use.", "error");
+
+      // More specific error messages
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
+
+      if (errorMessage.includes("email") || errorMessage.includes("Email")) {
+        showToast("Update failed - email may already be in use.", "error");
+      } else {
+        showToast("Failed to update profile. Please try again.", "error");
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
-  /* Remove from comment to here */
-
   if (!isClient) {
     return null;
+  }
+
+  if (loading) {
+    return (
+      <Center minH="100vh" bg="#F4F1E8">
+        <Spinner size="xl" color="#596334" />
+      </Center>
+    );
   }
 
   return (
