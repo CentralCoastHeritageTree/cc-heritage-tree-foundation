@@ -41,7 +41,7 @@ interface UserData {
 function Messages() {
   const toast = useToast();
   const { isLoaded, isSignedIn, user } = useUser();
-  const messagesPerPage = 7;
+  const messagesPerPage = 9;
   const [currentPage, setCurrentPage] = useState(1);
   const [currentAdminPage, setCurrentAdminPage] = useState(1);
   const [messageID, setMessageID] = useState(-1);
@@ -435,7 +435,7 @@ function Messages() {
                               </Td>
                             </Tr>
                           ) : (
-                            filteredMessages.map((msg) => (
+                            currentMessages.map((msg) => (
                               <Tr
                                 key={msg._id}
                                 className={
@@ -487,7 +487,7 @@ function Messages() {
                           )}
 
                           {/* Used to create whitespace on the last  */}
-                          {Array.from({ length: 7 - currentMessages.length }).map((_, i) => (
+                          {Array.from({ length: 9 - currentMessages.length }).map((_, i) => (
                             <tr key={`empty-${i}`} style={{ height: "55px" }}>
                               <td colSpan={5} />
                             </tr>
@@ -566,7 +566,7 @@ function Messages() {
                               </Td>
                             </Tr>
                           ) : (
-                            adminMessages.map((msg) => (
+                            currentAdminMessages.map((msg) => (
                               <Tr key={msg._id} className={styles.clickableRowNotRead}>
                                 <Td
                                   className={`${msg.selected ? styles.fadedText : ""}`}
@@ -610,7 +610,7 @@ function Messages() {
                           )}
 
                           {/* Used to create whitespace on the last  */}
-                          {Array.from({ length: 7 - currentAdminMessages.length }).map((_, i) => (
+                          {Array.from({ length: 9 - currentAdminMessages.length }).map((_, i) => (
                             <tr key={`empty-${i}`} style={{ height: "55px" }}>
                               <td colSpan={5} />
                             </tr>
@@ -707,17 +707,12 @@ function Messages() {
                       </button>
                     )}
                   </div>
-                  {isAdmin && localStorage.getItem("globalUserRole") == "Admin" && (
-                    <button className={styles.newMessageButton} onClick={() => router.push("/createAnnouncement")}>
-                      New Message +
-                    </button>
-                  )}
                 </div>
 
                 {activeTab === "inbox" ? (
                   <>
                     <Stack backgroundColor={"white"} marginTop={7} borderRadius={10} padding={5} margin={3}>
-                      {currentMessages.map((msg) => (
+                      {filteredMessages.map((msg) => (
                         <div
                           key={msg.id}
                           className={
@@ -767,40 +762,83 @@ function Messages() {
                         </div>
                       ))}
                     </Stack>
-
-                    {/* Pagination Controls */}
-                    <Box className={styles.pageControls} style={{ marginBottom: "70px" }}>
-                      <Button
-                        className={styles.pageButton}
-                        onClick={() => handlePageChange(currentPage - 1)}
-                        disabled={currentPage === 1}
-                      >
-                        Previous
-                      </Button>
-
-                      {Array.from({ length: totalPages }, (_, index) => (
-                        <Button
-                          key={index + 1}
-                          className={currentPage === index + 1 ? styles.activePage : styles.pageButton}
-                          onClick={() => handlePageChange(index + 1)}
-                        >
-                          {index + 1}
-                        </Button>
-                      ))}
-
-                      <Button
-                        className={styles.pageButton}
-                        onClick={() => handlePageChange(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                      >
-                        Next
-                      </Button>
-                    </Box>
                   </>
                 ) : (
-                  <p className={styles.sentMessage}>Sent messages here.</p>
+                  <>
+                    <Stack backgroundColor={"white"} marginTop={7} borderRadius={10} padding={5} margin={3}>
+                      {adminMessages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={
+                            checkIfRead(msg) || user?.fullName === msg.from
+                              ? styles.clickableRowIsRead
+                              : styles.clickableRowNotRead
+                          }
+                          onClick={() => {
+                            setOpenMessagePopUp(!openMessagePopUp);
+                            setMessageProps({
+                              date: new Date(msg.time).toLocaleDateString(),
+                              adminName: msg.from,
+                              messageContent: msg.message,
+                              messageTitle: msg.subject,
+                              id: msg._id,
+                              attachmentUrl: msg.attachmentUrl || "",
+                            });
+                            updateReadStatus(msg._id);
+                          }}
+                          style={{ overflow: "hidden" }}
+                        >
+                          <div className={msg.selected ? styles.fadedText : ""}>
+                            <Flex alignItems={"center"}>
+                              <Avatar name={msg.sender} size="md" bg="#596334" color="white" />
+                              <div style={{ padding: "10px" }}>
+                                <Flex justify="space-between">
+                                  {msg.sender}
+                                  <Text className={msg.selected ? styles.fadedText : ""}>{msg.date}</Text>
+                                </Flex>
+                                <Text
+                                  style={{
+                                    overflow: "hidden",
+                                    whiteSpace: "nowrap",
+                                    textOverflow: "ellipsis",
+                                    maxWidth: "100%",
+                                  }}
+                                  className={msg.selected ? styles.fadedText : ""}
+                                >
+                                  {msg.subject}
+                                </Text>
+                              </div>
+                            </Flex>
+                          </div>
+                          <div style={{ marginTop: "5px" }}>
+                            <Divider />
+                          </div>
+                        </div>
+                      ))}
+                    </Stack>
+                  </>
                 )}
               </div>
+
+              {isAdmin && localStorage.getItem("globalUserRole") == "Admin" && (
+                <button
+                  className={styles.newMessageButton}
+                  onClick={() => router.push("/createAnnouncement")}
+                  style={{
+                    position: "fixed",
+                    bottom: "20px",
+                    right: "20px",
+                    zIndex: 1000,
+                    borderRadius: "50px",
+                    padding: "15px 20px",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  New Message +
+                </button>
+              )}
               {openMessagePopUp === true ? (
                 <div style={{ position: "absolute", left: "0", top: "200px", width: "100%", height: "95vh" }}>
                   <MessagePopUp
