@@ -16,12 +16,10 @@ function LayoutInnerContent({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useUser();
 
   const [customUserData, setCustomUserData] = useState<IUser | null>(null);
-  const [hasPhoneNumber, setHasPhoneNumber] = useState(false);
   const [isLoadingCustomUserData, setIsLoadingCustomUserData] = useState(true);
 
   useEffect(() => {
     setIsLoadingCustomUserData(true);
-    setHasPhoneNumber(false);
     setCustomUserData(null);
 
     if (isLoaded && user) {
@@ -37,16 +35,10 @@ function LayoutInnerContent({ children }: { children: React.ReactNode }) {
         .then((data: IUser | null) => {
           const plainData = data ? JSON.parse(JSON.stringify(data)) : null;
           setCustomUserData(plainData);
-          if (plainData && plainData.phoneNumber && plainData.phoneNumber.trim() !== "") {
-            setHasPhoneNumber(true);
-          } else {
-            setHasPhoneNumber(false);
-          }
         })
         .catch((error) => {
           console.error("Error fetching user data:", error);
           setCustomUserData(null);
-          setHasPhoneNumber(false);
         })
         .finally(() => {
           setIsLoadingCustomUserData(false);
@@ -56,9 +48,9 @@ function LayoutInnerContent({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id, isLoaded]); // Changed from [user, isLoaded] to [user?.id, isLoaded]
 
-  const showNavbar =
-    user && !isLoadingCustomUserData && hasPhoneNumber && pathName !== "/login" && pathName !== "/signup";
+  const showNavbar = user && !isLoadingCustomUserData && pathName !== "/login" && pathName !== "/signup";
 
+  console.log(user, !isLoadingCustomUserData && pathName !== "/login", pathName !== "/signup");
   if (!isLoaded || (user && isLoadingCustomUserData)) {
     return (
       <div
