@@ -2,10 +2,13 @@
 import { Box, Button, Link } from "@chakra-ui/react";
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 export default function Success() {
   const { user } = useUser();
   const [role, setRole] = useState("");
+  const searchParams = useSearchParams();
+  const treeNumber = searchParams.get("tree"); // <-- from URL
 
   useEffect(() => {
     if (!user) return; // Exit early if no user
@@ -49,6 +52,11 @@ export default function Success() {
         <Box fontSize="40px" fontFamily="Georgia">
           🎉 Tree Log Success 🎉
         </Box>
+        {treeNumber && (
+          <Box>
+            Tree Number: <b>{treeNumber}</b>
+          </Box>
+        )}
         <Box>Thank you for helping us!</Box>
         <Link href="/newTreeForm">
           <Button mt="30px" bg="#AE5700" color="white" padding="5px 30px" borderRadius="20px">
