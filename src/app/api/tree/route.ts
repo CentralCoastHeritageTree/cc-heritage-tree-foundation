@@ -122,7 +122,11 @@ export async function POST(req: NextRequest) {
       if (!(file instanceof File) || file.size === 0) continue;
 
       try {
+        // Process image *sequentially* — avoid parallel sharp/heic overlap
         const { buffer, filename, contentType } = await processImage(file);
+
+        // Explicitly free memory between steps
+        global.gc?.(); // only works if Node run with --expose-gc (optional)
 
         const params = {
           Bucket: process.env.AWS_S3_BUCKET_NAME!,
@@ -133,10 +137,14 @@ export async function POST(req: NextRequest) {
 
         const result = await s3.upload(params).promise();
         imageUrls.push(result.Location);
+
+        // Free processed buffer reference ASAP
+        buffer.fill(0);
       } catch (imageError) {
         console.error(`Failed to process image ${file.name}:`, imageError);
       }
     }
+
     const treeData = {
       treeId: nextTreeID,
       collectorName: formData.get("collectorName"),
