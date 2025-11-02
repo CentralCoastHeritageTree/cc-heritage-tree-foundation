@@ -31,15 +31,25 @@ async function processImage(file: File): Promise<{ buffer: Buffer; filename: str
   try {
     const { sharp, heicConvert } = await loadImageProcessors();
     const arrayBuffer = await file.arrayBuffer();
+
+    // Guard for empty files
+    if (!arrayBuffer || file.size === 0) {
+      console.warn(`Skipping empty file: ${file.name}`);
+      return { buffer: Buffer.alloc(0), filename: file.name, contentType: "application/octet-stream" };
+    }
+
     let buffer = Buffer.from(arrayBuffer);
     let filename = file.name;
     let contentType = file.type || "application/octet-stream";
 
-    if (file.type === "image/heic" || file.name.toLowerCase().endsWith(".heic")) {
-      console.log(`Converting HEIC file: ${filename}`);
+    const isHEIC = file.type === "image/heic" || file.name.toLowerCase().endsWith(".heic");
+
+    // HEIC → JPEG conversion (for non-converted HEICs)
+    if (isHEIC) {
+      console.log(`Converting HEIC file on server: ${filename}`);
       try {
         const jpegBuffer = await heicConvert({
-          buffer: Buffer.from(arrayBuffer) as unknown as ArrayBuffer,
+          buffer: buffer as unknown as ArrayBuffer,
           format: "JPEG",
           quality: 1,
         });
@@ -47,25 +57,26 @@ async function processImage(file: File): Promise<{ buffer: Buffer; filename: str
         filename = filename.replace(/\.(heic|HEIC)$/i, ".jpg");
         contentType = "image/jpeg";
       } catch (heicError) {
-        console.error("HEIC conversion error:", heicError);
-        throw new Error("Failed to convert HEIC image");
+        console.error(`HEIC conversion failed for ${filename}:`, heicError);
+        // Fallback: skip or upload raw buffer if needed
+        return { buffer: Buffer.alloc(0), filename, contentType };
       }
     }
 
+    // Use sharp to resize/compress
     const { width, height } = await sharp(buffer).metadata();
     let processedBuffer = buffer;
-    let shouldResize = false;
-    if (width && width > MAX_DIMENSION) shouldResize = true;
-    if (height && height > MAX_DIMENSION) shouldResize = true;
 
-    if (shouldResize || buffer.length > MAX_IMAGE_SIZE) {
+    const needsResize = (width && width > MAX_DIMENSION) || (height && height > MAX_DIMENSION);
+    if (needsResize || buffer.length > MAX_IMAGE_SIZE) {
       let quality = Math.floor(JPEG_QUALITY * 100);
+
       processedBuffer = await sharp(buffer)
         .resize(MAX_DIMENSION, MAX_DIMENSION, { fit: "inside", withoutEnlargement: true })
         .jpeg({ quality })
         .toBuffer();
 
-      // Reduce quality progressively if still too large
+      // progressive compression loop
       while (processedBuffer.length > MAX_IMAGE_SIZE && quality > 20) {
         quality -= 10;
         processedBuffer = await sharp(buffer)
@@ -74,9 +85,10 @@ async function processImage(file: File): Promise<{ buffer: Buffer; filename: str
           .toBuffer();
       }
 
-      console.log(`Compressed image to ${(processedBuffer.length / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`Compressed ${filename} to ${(processedBuffer.length / 1024 / 1024).toFixed(2)} MB`);
     }
 
+    // Ensure final JPEG filename
     if (!filename.toLowerCase().endsWith(".jpg") && !filename.toLowerCase().endsWith(".jpeg")) {
       filename = filename.replace(/\.[^.]+$/, ".jpg");
     }
@@ -84,7 +96,8 @@ async function processImage(file: File): Promise<{ buffer: Buffer; filename: str
     return { buffer: processedBuffer, filename, contentType: "image/jpeg" };
   } catch (error) {
     console.error("Image processing error:", error);
-    throw error;
+    // Return an empty buffer to skip upload instead of crashing
+    return { buffer: Buffer.alloc(0), filename: "invalid.jpg", contentType: "image/jpeg" };
   }
 }
 

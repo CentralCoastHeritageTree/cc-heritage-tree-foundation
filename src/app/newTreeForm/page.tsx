@@ -29,6 +29,7 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import mongoose from "mongoose";
 import { BrowserView, MobileView, isMobile } from "react-device-detect";
+import heic2any from "heic2any";
 
 const TreeFormSection = chakra(FormControl, {
   baseStyle: {
@@ -90,22 +91,6 @@ export default function TreeEntryForm() {
     treeIssues: [],
     fieldNotes: "",
   });
-
-  const getTreeId = (treeId: any): string => {
-    if (!treeId) return "N/A";
-
-    // Handle Decimal128 objects
-    if (typeof treeId === "object" && treeId.$numberDecimal) {
-      return parseFloat(treeId.$numberDecimal).toString();
-    }
-
-    // Handle regular numbers or strings
-    if (typeof treeId === "number" || typeof treeId === "string") {
-      return treeId.toString();
-    }
-
-    return "N/A";
-  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -221,10 +206,25 @@ export default function TreeEntryForm() {
     try {
       const form = new FormData();
 
-      // Append all selected images
-      selectedImages.forEach((file) => {
-        form.append("files", file); // This matches your API endpoint
-      });
+      const processedFiles = await Promise.all(
+        selectedImages.map(async (file) => {
+          if (file.name.toLowerCase().endsWith(".heic") || file.type === "image/heic") {
+            try {
+              const blob = await heic2any({ blob: file, toType: "image/jpeg" });
+              return new File([blob as BlobPart], file.name.replace(/\.heic$/i, ".jpg"), {
+                type: "image/jpeg",
+              });
+            } catch (err) {
+              console.warn("HEIC conversion failed, uploading raw file:", err);
+              return file;
+            }
+          }
+          return file;
+        }),
+      );
+
+      // Append converted files
+      processedFiles.forEach((f) => form.append("files", f));
 
       // Log to verify images are added
       console.log("Number of images being sent:", selectedImages.length);
@@ -254,8 +254,7 @@ export default function TreeEntryForm() {
       const result = await response.json();
 
       if (response.ok) {
-        console.log("tree result", result);
-        router.push(`/success?tree=${encodeURIComponent(getTreeId(result.data.treeId))}`);
+        router.push("/success");
         // Reset form
         setFormData({
           treeLocation: "",
