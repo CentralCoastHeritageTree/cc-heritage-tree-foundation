@@ -666,7 +666,7 @@ export default function TreeEntryForm() {
                   borderRadius="md"
                   display="inline-block"
                 >
-                  Choose Images
+                  Choose Images (Max 2)
                 </Box>
                 <Text fontSize="sm" color="gray.500" mt={2}>
                   {selectedImages.length} images selected
