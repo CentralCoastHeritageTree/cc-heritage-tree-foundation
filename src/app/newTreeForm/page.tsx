@@ -91,6 +91,22 @@ export default function TreeEntryForm() {
     fieldNotes: "",
   });
 
+  const getTreeId = (treeId: any): string => {
+    if (!treeId) return "N/A";
+
+    // Handle Decimal128 objects
+    if (typeof treeId === "object" && treeId.$numberDecimal) {
+      return parseFloat(treeId.$numberDecimal).toString();
+    }
+
+    // Handle regular numbers or strings
+    if (typeof treeId === "number" || typeof treeId === "string") {
+      return treeId.toString();
+    }
+
+    return "N/A";
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -238,7 +254,8 @@ export default function TreeEntryForm() {
       const result = await response.json();
 
       if (response.ok) {
-        router.push("/success");
+        console.log("tree result", result);
+        router.push(`/success?tree=${encodeURIComponent(getTreeId(result.data.treeId))}`);
         // Reset form
         setFormData({
           treeLocation: "",
