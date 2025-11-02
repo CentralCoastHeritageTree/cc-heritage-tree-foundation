@@ -3,7 +3,7 @@ import { useRef, useLayoutEffect, useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { ITree } from "@/database/treeSchema";
 import dynamic from "next/dynamic";
-import { Box, Wrap, Text, HStack, VStack, WrapItem, Image } from "@chakra-ui/react";
+import { Box, Wrap, Text, HStack, VStack, WrapItem, Image, Grid, GridItem } from "@chakra-ui/react";
 import { createRoot } from "react-dom/client";
 import { TreePine, NotebookPen } from "lucide-react";
 import "./Map.css";
@@ -159,21 +159,38 @@ function PopupContent({ tree, profileURL }: { tree: ITree; profileURL: any }) {
             ))}
           </Wrap>
         </Box>
-        <HStack px="10px" paddingBottom="10px" width="100%" justifyContent="space-between">
+        <HStack px="10px" width="100%" justifyContent="space-between">
           <VStack sx={{ "& > p": { p: 0, m: 0 } }}>
             <Text textColor={"#596334"}>Trunk DBH</Text>
             <Text fontWeight="semibold">{tree.dbh.toString()}&apos;</Text>
           </VStack>
           <VStack sx={{ "& > p": { p: 0, m: 0 } }}>
             <Text textColor={"#596334"}>Tree Height</Text>
-            {/* No height in DB schema */}
-            <Text fontWeight="semibold">N/A</Text>
+            <Text fontWeight="semibold">{tree.treeHeight.toString()}&quot;</Text>
           </VStack>
           <VStack sx={{ "& > p": { p: 0, m: 0 } }}>
             <Text textColor={"#596334"}>Canopy Spread</Text>
             <Text fontWeight="semibold">{tree.canopyBreadth.toString()}&quot;</Text>
           </VStack>
         </HStack>
+
+        {/* Photos */}
+        <Box px={"10px"} w="100%" pb="10px">
+          <Text fontSize="med" color="#596334" mb={2}>
+            Photos
+          </Text>
+          <Grid gridTemplateColumns="repeat(2, 1fr)" gridGap="5px">
+            {Array.isArray(tree.photo) ? (
+              tree.photo.map((photo, id) => (
+                <GridItem key={id} gridColumn="span 1" borderRadius="10px" aspectRatio="1 / 1" overflow="hidden">
+                  <Image src={photo} alt="tree" objectFit="cover"></Image>
+                </GridItem>
+              ))
+            ) : (
+              <Image src={tree.photo} alt="tree" objectFit="cover"></Image>
+            )}
+          </Grid>
+        </Box>
       </VStack>
     </Box>
   );

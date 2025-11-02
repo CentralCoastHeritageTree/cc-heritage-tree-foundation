@@ -816,7 +816,7 @@ export default function TreeTable() {
                           {/* Photos */}
                           <Box>
                             <Text fontSize="med" color="#596334" mb={2}>
-                              Photo
+                              Photos
                             </Text>
                             <Grid gridTemplateColumns="repeat(2, 1fr)" gridGap="5px">
                               {Array.isArray(selectedTree.photo) ? (
