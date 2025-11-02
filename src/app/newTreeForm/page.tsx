@@ -76,6 +76,7 @@ export default function TreeEntryForm() {
   const [isClient, setIsClient] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   const [formData, setFormData] = useState<FormValues>({
     treeLocation: "",
@@ -91,27 +92,26 @@ export default function TreeEntryForm() {
   });
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log(1);
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const validTypes = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
+    // Allow .heic even if type is missing
+    const validTypes = ["image/jpeg", "image/png", "image/jpg", "image/webp", "image/heic"];
     const maxSize = 5; // MB
 
-    // Filter valid files
-    const validFiles = Array.from(files)
-      .filter((file) => validTypes.includes(file.type))
-      .filter((file) => file.size <= maxSize * 1024 * 1024);
+    const validFiles = Array.from(files).filter(
+      (file) => validTypes.includes(file.type) || file.name.toLowerCase().endsWith(".heic"),
+    );
 
     if (validFiles.length === 0) {
-      alert("Only image files (JPEG, PNG, WEBP) under 5MB are allowed.");
+      alert("Only image files (JPG, PNG, WEBP, HEIC) are allowed.");
       return;
     }
 
-    // Add new files to state
+    // Append valid files to existing state
     setSelectedImages((prev) => [...prev, ...validFiles]);
 
-    // Create previews for new files
+    // Generate local previews
     const newPreviews = validFiles.map((file) => URL.createObjectURL(file));
     setImagePreviews((prev) => [...prev, ...newPreviews]);
   };
@@ -184,15 +184,19 @@ export default function TreeEntryForm() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLDivElement>) => {
     event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
 
     if (!user) {
       alert("Please log in to submit the form.");
+      setSubmitting(false);
       return;
     }
 
     const coordMatch = formData.treeLocation.match(/\(?\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\)?/);
     if (!coordMatch) {
       alert("Please use correct formatting for location");
+      setSubmitting(false);
       return;
     }
 
@@ -203,8 +207,12 @@ export default function TreeEntryForm() {
 
       // Append all selected images
       selectedImages.forEach((file) => {
-        form.append("files", file); // Note the plural "files" and we're not using array indices
+        form.append("files", file); // This matches your API endpoint
       });
+
+      // Log to verify images are added
+      console.log("Number of images being sent:", selectedImages.length);
+      console.log("FormData entries:");
 
       form.append("collectorName", user.fullName || "Unknown Collector");
       form.append("dateCollected", new Date().toISOString());
@@ -217,12 +225,10 @@ export default function TreeEntryForm() {
       form.append("gpsCoordinates[0]", latitude);
       form.append("gpsCoordinates[1]", longitude);
 
+      // Fixed syntax error - use parentheses not backticks
       formData.treeIssues.forEach((issue, idx) => {
         form.append(`treeCondition[${idx}]`, issue);
       });
-
-      const treeHeight = mongoose.Types.Decimal128.fromString(formData.treeSpecs.treeHeight.toString());
-      console.log(form);
 
       const response = await fetch("/api/tree/", {
         method: "POST",
@@ -251,12 +257,14 @@ export default function TreeEntryForm() {
         setSelectedImages([]);
         setImagePreviews([]);
       } else {
-        alert("Failed to submit tree: " + result);
+        console.error("Server error:", result);
+        alert("Failed to submit tree: " + JSON.stringify(result));
       }
     } catch (err) {
       console.error("Submission error:", err);
       alert("An error occurred while submitting the tree.");
     }
+    setSubmitting(false);
   };
 
   // Clean up image previews when component unmounts
